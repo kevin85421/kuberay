@@ -1,1 +1,0 @@
-../../ray-operator/README.md
