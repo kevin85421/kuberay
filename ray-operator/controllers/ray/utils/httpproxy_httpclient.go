@@ -8,14 +8,14 @@ import (
 )
 
 var (
-	DefaultHttpProxyPort = 8000
-	HealthCheckPath      = "/-/healthz"
+	DefaultHttpProxyPort int32  = 8000
+	HealthCheckPath      string = "/-/healthz"
 )
 
 type RayHttpProxyClientInterface interface {
 	InitClient()
 	CheckHealth() error
-	SetHostIp(hostIp string)
+	SetHostIp(hostIp string, port int32)
 }
 
 // GetRayHttpProxyClientFunc Used for unit tests.
@@ -36,7 +36,11 @@ func (r *RayHttpProxyClient) InitClient() {
 	}
 }
 
-func (r *RayHttpProxyClient) SetHostIp(hostIp string) {
+func (r *RayHttpProxyClient) SetHostIp(hostIp string, port int32) {
+	// If $port is equal to -1, use DefaultHttpProxyPort.
+	// if port == -1 {
+	// 	port = DefaultHttpProxyPort
+	// }
 	r.httpProxyURL = fmt.Sprint("http://", hostIp, ":", DefaultHttpProxyPort)
 }
 

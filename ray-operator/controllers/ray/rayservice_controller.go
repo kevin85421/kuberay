@@ -809,7 +809,20 @@ func (r *RayServiceReconciler) labelHealthyServePods(ctx context.Context, rayClu
 	httpProxyClient := utils.GetRayHttpProxyClientFunc()
 	httpProxyClient.InitClient()
 	for _, pod := range allPods.Items {
-		httpProxyClient.SetHostIp(pod.Status.PodIP)
+		// index := utils.FindRayContainerIndex(rayClusterInstance.Spec.HeadGroupSpec.Template.Spec)
+		// ports := rayClusterInstance.Spec.HeadGroupSpec.Template.Spec.Containers[index].Ports
+		// // httpProxyClient.SetHostIp(pod.Status.PodIP, utils.DefaultHttpProxyPort)
+		// for _, p := range ports {
+		// 	r.Log.Info("port name", "name", p.Name)
+		// 	r.Log.Info("container port", "cport", p.ContainerPort)
+		// 	if p.Name == common.DefaultServingPortName {
+		// 		// httpProxyClient.SetHostIp(pod.Status.PodIP, port.ContainerPort)
+		// 		r.Log.Info("[820] here")
+		// 		break
+		// 	}
+		// }
+		const port int32 = 8000
+		httpProxyClient.SetHostIp(pod.Status.PodIP, port)
 		if pod.Labels == nil {
 			pod.Labels = make(map[string]string)
 		}
@@ -818,6 +831,7 @@ func (r *RayServiceReconciler) labelHealthyServePods(ctx context.Context, rayClu
 		} else {
 			pod.Labels[common.RayClusterServingServiceLabelKey] = common.EnableRayClusterServingServiceFalse
 		}
+		// r.Log.Info("[835]", "pod", pod)
 		if updateErr := r.Update(ctx, &pod); updateErr != nil {
 			r.Log.Error(updateErr, "Pod label Update error!", "Pod.Error", updateErr)
 			return updateErr
