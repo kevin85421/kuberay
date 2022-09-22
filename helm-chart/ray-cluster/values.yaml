@@ -56,7 +56,7 @@ worker:
   # uncomment the line below
   # disabled: true
   groupName: workergroup
-  replicas: 1
+  replicas: 2
   type: worker
   labels:
     key: value
