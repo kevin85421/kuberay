@@ -9,16 +9,20 @@ from string import Template
 import docker
 import time
 
+# Image versions
 ray_version = '1.9.0'
+kuberay_sha = 'nightly'
+
+# Docker images
 ray_image = "rayproject/ray:1.9.0"
+kuberay_operator_image = "kuberay/operator:nightly"
+kuberay_apiserver_image = "kuberay/apiserver:nightly"
 
 kindcluster_config_file = 'tests/config/cluster-config.yaml'
 raycluster_service_file = 'tests/config/raycluster-service.yaml'
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
-
-kuberay_sha = 'nightly'
 
 
 def parse_ray_version(version_str):
@@ -54,10 +58,11 @@ def create_cluster():
 
 
 def apply_kuberay_resources():
-    shell_assert_success('kind load docker-image kuberay/operator:{}'.format(kuberay_sha))
-    shell_assert_success('kind load docker-image kuberay/apiserver:{}'.format(kuberay_sha))
-    shell_assert_success(
-        'kubectl create -k manifests/cluster-scope-resources')
+    shell_assert_success('kind load docker-image {}'.format(kuberay_operator_image))
+    shell_assert_success('kind load docker-image {}'.format(kuberay_apiserver_image))
+    shell_assert_success('kind load docker-image {}'.format(ray_image))
+
+    shell_assert_success('kubectl create -k manifests/cluster-scope-resources')
     # use kustomize to build the yaml, then change the image to the one we want to testing.
     shell_assert_success(
         ('rm -f kustomization.yaml && kustomize create --resources manifests/base && ' +
@@ -142,6 +147,8 @@ def delete_cluster():
 def download_images():
     client = docker.from_env()
     client.images.pull(ray_image)
+    client.images.pull(kuberay_operator_image)
+    client.images.pull(kuberay_apiserver_image)
     # not enabled for now
     # shell_assert_success('kind load docker-image \"{}\"'.format(ray_image))
     client.close()
@@ -159,8 +166,8 @@ class BasicRayTestCase(unittest.TestCase):
         # ray cluster running inside Kind environment.
         delete_cluster()
         create_cluster()
-        apply_kuberay_resources()
         download_images()
+        apply_kuberay_resources()
         create_kuberay_cluster(BasicRayTestCase.cluster_template_file)
 
     def test_simple_code(self):
@@ -278,8 +285,8 @@ class RayFTTestCase(unittest.TestCase):
             return
         delete_cluster()
         create_cluster()
-        apply_kuberay_resources()
         download_images()
+        apply_kuberay_resources()
         create_kuberay_cluster(RayFTTestCase.cluster_template_file)
 
     def setUp(self):
@@ -511,8 +518,8 @@ class RayServiceTestCase(unittest.TestCase):
         # The test will check the successful response from serve service.
         delete_cluster()
         create_cluster()
-        apply_kuberay_resources()
         download_images()
+        apply_kuberay_resources()
         create_kuberay_service(RayServiceTestCase.service_template_file)
 
     def setUp(self):
@@ -542,7 +549,7 @@ class RayServiceTestCase(unittest.TestCase):
         )
 
 def parse_environment():
-    global ray_version, ray_image, kuberay_sha
+    global ray_version, ray_image, kuberay_sha, kuberay_operator_image, kuberay_apiserver_image
     for k, v in os.environ.items():
         if k == 'RAY_VERSION':
             logger.info('Setting Ray image to: {}'.format(v))
@@ -551,6 +558,8 @@ def parse_environment():
         if k == 'KUBERAY_IMG_SHA':
             logger.info('Using KubeRay docker build SHA: {}'.format(v))
             kuberay_sha = v
+            kuberay_operator_image = 'kuberay/operator:{}'.format(kuberay_sha)
+            kuberay_apiserver_image = 'kuberay/apiserver:{}'.format(kuberay_sha)
 
 
 def wait_for_condition(
