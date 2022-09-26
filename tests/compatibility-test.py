@@ -146,11 +146,12 @@ def delete_cluster():
 
 def download_images():
     client = docker.from_env()
-    client.images.pull(ray_image)
-    client.images.pull(kuberay_operator_image)
-    client.images.pull(kuberay_apiserver_image)
-    # not enabled for now
-    # shell_assert_success('kind load docker-image \"{}\"'.format(ray_image))
+    images = [ray_image, kuberay_operator_image, kuberay_apiserver_image]
+    for image in images:
+        if shell_assert_failure('docker image inspect {}'.format(image)):
+            # Only pull the image from DockerHub when the image does not
+            # exist in the local docker registry.
+            client.images.pull(image)
     client.close()
 
 
