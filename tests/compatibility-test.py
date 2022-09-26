@@ -58,10 +58,9 @@ def create_cluster():
 
 
 def apply_kuberay_resources():
-    shell_assert_success('kind load docker-image {}'.format(kuberay_operator_image))
-    shell_assert_success('kind load docker-image {}'.format(kuberay_apiserver_image))
-    shell_assert_success('kind load docker-image {}'.format(ray_image))
-
+    images = [ray_image, kuberay_operator_image, kuberay_apiserver_image]
+    for image in images:
+        shell_assert_success('kind load docker-image {}'.format(image))
     shell_assert_success('kubectl create -k manifests/cluster-scope-resources')
     # use kustomize to build the yaml, then change the image to the one we want to testing.
     shell_assert_success(
@@ -148,7 +147,7 @@ def download_images():
     client = docker.from_env()
     images = [ray_image, kuberay_operator_image, kuberay_apiserver_image]
     for image in images:
-        if shell_assert_failure('docker image inspect {}'.format(image)):
+        if shell_run('docker image inspect {}'.format(image)) != 0:
             # Only pull the image from DockerHub when the image does not
             # exist in the local docker registry.
             client.images.pull(image)
