@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import argparse
 import logging
 import os
 import tempfile
@@ -10,11 +9,13 @@ from string import Template
 import docker
 import time
 
-# Image version: The value is implied by `ray_image`.
-ray_version = ''
+# Image version
+ray_version = '1.9.0'
 
-# Docker images: The default values of images are set by argparse
-ray_image, kuberay_operator_image, kuberay_apiserver_image = "", "", ""
+# Docker images
+ray_image = 'rayproject/ray:1.9.0'
+kuberay_operator_image = 'kuberay/operator:nightly'
+kuberay_apiserver_image = 'kuberay/apiserver:nightly'
 
 kindcluster_config_file = 'tests/config/cluster-config.yaml'
 raycluster_service_file = 'tests/config/raycluster-service.yaml'
@@ -560,23 +561,19 @@ def wait_for_condition(
         message += f" Last exception: {last_ex}"
     raise RuntimeError(message)
 
+def parse_environment():
+    global ray_version, ray_image, kuberay_operator_image, kuberay_apiserver_image
+    for k, v in os.environ.items():
+        if k == 'RAY_IMAGE':
+            ray_image = v
+            ray_version = ray_image.split(':')[-1]
+        elif k == 'OPERATOR_IMAGE':
+            kuberay_operator_image = v
+        elif k == 'APISERVER_IMAGE':
+            kuberay_apiserver_image = v
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(
-        description='Compatibility tests for KubeRay and Ray')
-    parser.add_argument('--operator-image', '-k', dest='kuberay_operator_image',
-                        required=False, default='kuberay/operator:nightly')
-    parser.add_argument('--apiserver-image', '-a', dest='kuberay_apiserver_image',
-                        required=False, default='kuberay/apiserver:nightly')
-    parser.add_argument('--ray-image', '-r', dest='ray_image',
-                        required=False, default='rayproject/ray:1.9.0')
-    args = parser.parse_args()
-
-    ray_image = args.ray_image
-    kuberay_operator_image = args.kuberay_operator_image
-    kuberay_apiserver_image = args.kuberay_apiserver_image
-    ray_version = ray_image.split(':')[-1]
-
+    parse_environment()
     logger.info('Setting Ray image to: {}'.format(ray_image))
     logger.info('Setting Ray version to: {}'.format(ray_version))
     logger.info('Setting KubeRay operator image to: {}'.format(kuberay_operator_image))
