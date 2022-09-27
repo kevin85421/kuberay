@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import argparse
 import logging
 import os
 import tempfile
@@ -9,14 +10,11 @@ from string import Template
 import docker
 import time
 
-# Image versions
-ray_version = '1.9.0'
-kuberay_sha = 'nightly'
+# Image version: The value is implied by `ray_image`.
+ray_version = ''
 
-# Docker images
-ray_image = "rayproject/ray:1.9.0"
-kuberay_operator_image = "kuberay/operator:nightly"
-kuberay_apiserver_image = "kuberay/apiserver:nightly"
+# Docker images: The default values of images are set by argparse
+ray_image, kuberay_operator_image, kuberay_apiserver_image = "", "", ""
 
 kindcluster_config_file = 'tests/config/cluster-config.yaml'
 raycluster_service_file = 'tests/config/raycluster-service.yaml'
@@ -66,8 +64,8 @@ def apply_kuberay_resources():
     shell_assert_success(
         ('rm -f kustomization.yaml && kustomize create --resources manifests/base && ' +
          'kustomize edit set image ' +
-         'kuberay/operator:nightly=kuberay/operator:{0} kuberay/apiserver:nightly=kuberay/apiserver:{0} && ' +
-         'kubectl apply -k .').format(kuberay_sha))
+         'kuberay/operator:nightly={0} kuberay/apiserver:nightly={1} && ' +
+         'kubectl apply -k .').format(kuberay_operator_image, kuberay_apiserver_image))
 
 
 def create_kuberay_cluster(template_name):
@@ -262,19 +260,14 @@ print(len(ray.nodes()))
 def ray_ft_supported():
     if ray_version == "nightly":
         return True
-    major, minor, patch = parse_ray_version(ray_version)
-    if major * 100 + minor <= 113:
-        return False
-    return True
+    major, minor, _ = parse_ray_version(ray_version)
+    return major * 100 + minor > 113
 
 def ray_service_supported():
     if ray_version == "nightly":
         return True
-    major, minor, patch = parse_ray_version(ray_version)
-    if major * 100 + minor <= 113:
-        return False
-    return True
-
+    major, minor, _ = parse_ray_version(ray_version)
+    return major * 100 + minor > 113
 
 class RayFTTestCase(unittest.TestCase):
     cluster_template_file = 'tests/config/ray-cluster.ray-ft.yaml.template'
@@ -282,16 +275,12 @@ class RayFTTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         if not ray_ft_supported():
-            return
+            raise unittest.SkipTest("ray ft is not supported")
         delete_cluster()
         create_cluster()
         download_images()
         apply_kuberay_resources()
         create_kuberay_cluster(RayFTTestCase.cluster_template_file)
-
-    def setUp(self):
-        if not ray_ft_supported():
-            raise unittest.SkipTest("ray ft is not supported")
 
     def test_kill_head(self):
         # This test will delete head node and wait for a new replacement to
@@ -511,7 +500,7 @@ class RayServiceTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         if not ray_service_supported():
-            return
+            raise unittest.SkipTest("ray service is not supported")
         # Ray Service is running inside a local Kind environment.
         # We use the Ray nightly version now.
         # We wait for the serve service ready.
@@ -521,10 +510,6 @@ class RayServiceTestCase(unittest.TestCase):
         download_images()
         apply_kuberay_resources()
         create_kuberay_service(RayServiceTestCase.service_template_file)
-
-    def setUp(self):
-        if not ray_service_supported():
-            raise unittest.SkipTest("ray service is not supported")
 
     def test_ray_serve_work(self):
         time.sleep(5)
@@ -547,20 +532,6 @@ class RayServiceTestCase(unittest.TestCase):
             lambda: shell_run(curl_cmd) == 0,
             timeout=180,
         )
-
-def parse_environment():
-    global ray_version, ray_image, kuberay_sha, kuberay_operator_image, kuberay_apiserver_image
-    for k, v in os.environ.items():
-        if k == 'RAY_VERSION':
-            logger.info('Setting Ray image to: {}'.format(v))
-            ray_version = v
-            ray_image = 'rayproject/ray:{}'.format(ray_version)
-        if k == 'KUBERAY_IMG_SHA':
-            logger.info('Using KubeRay docker build SHA: {}'.format(v))
-            kuberay_sha = v
-            kuberay_operator_image = 'kuberay/operator:{}'.format(kuberay_sha)
-            kuberay_apiserver_image = 'kuberay/apiserver:{}'.format(kuberay_sha)
-
 
 def wait_for_condition(
     condition_predictor, timeout=10, retry_interval_ms=100, **kwargs
@@ -591,5 +562,23 @@ def wait_for_condition(
 
 
 if __name__ == '__main__':
-    parse_environment()
+    parser = argparse.ArgumentParser(
+        description='Compatibility tests for KubeRay and Ray')
+    parser.add_argument('--operator-image', '-k', dest='kuberay_operator_image',
+                        required=False, default='kuberay/operator:nightly')
+    parser.add_argument('--apiserver-image', '-a', dest='kuberay_apiserver_image',
+                        required=False, default='kuberay/apiserver:nightly')
+    parser.add_argument('--ray-image', '-r', dest='ray_image',
+                        required=False, default='rayproject/ray:1.9.0')
+    args = parser.parse_args()
+
+    ray_image = args.ray_image
+    kuberay_operator_image = args.kuberay_operator_image
+    kuberay_apiserver_image = args.kuberay_apiserver_image
+    ray_version = ray_image.split(':')[-1]
+
+    logger.info('Setting Ray image to: {}'.format(ray_image))
+    logger.info('Setting Ray version to: {}'.format(ray_version))
+    logger.info('Setting KubeRay operator image to: {}'.format(kuberay_operator_image))
+    logger.info('Setting KubeRay apiserver image to: {}'.format(kuberay_apiserver_image))
     unittest.main(verbosity=2)

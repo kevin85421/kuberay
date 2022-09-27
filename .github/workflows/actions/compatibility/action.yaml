@@ -68,5 +68,6 @@ runs:
       kustomize edit set image kuberay/apiserver=kuberay/apiserver:${{ steps.vars.outputs.sha_short }}
       popd
       echo "Using Ray image ${{ inputs.ray_version }}"
-      RAY_VERSION="${{ inputs.ray_version }}" KUBERAY_IMG_SHA=${{ steps.vars.outputs.sha_short }} python ./tests/compatibility-test.py
+      python ./tests/compatibility-test.py -k kuberay/operator:${{ steps.vars.outputs.sha_short }} \
+        -a kuberay/apiserver:${{ steps.vars.outputs.sha_short }} -r rayproject/ray:${{ inputs.ray_version }}
     shell: bash
