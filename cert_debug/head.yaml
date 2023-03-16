@@ -1,0 +1,116 @@
+# Ray head node service, allowing worker pods to discover the head node to perform the bidirectional communication.
+# More contexts can be found at [the Ports configurations doc](https://docs.ray.io/en/latest/ray-core/configure.html#ports-configurations).
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-ray-head
+  labels:
+    app: ray-head
+spec:
+  clusterIP: None
+  ports:
+  - name: client
+    protocol: TCP
+    port: 10001
+    targetPort: 10001
+  - name: dashboard
+    protocol: TCP
+    port: 8265
+    targetPort: 8265
+  - name: gcs-server
+    protocol: TCP
+    port: 6380
+    targetPort: 6380
+  selector:
+    app: ray-head
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment-ray-head
+  labels:
+    app: ray-head
+spec:
+  # Do not change this - Ray currently only supports one head node per cluster.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ray-head
+  template:
+    metadata:
+      labels:
+        app: ray-head
+    spec:
+      # If the head node goes down, the entire cluster (including all worker
+      # nodes) will go down as well. If you want Kubernetes to bring up a new
+      # head node in this case, set this to "Always," else set it to "Never."
+      restartPolicy: Always
+
+      # This volume allocates shared memory for Ray to use for its plasma
+      # object store. If you do not provide this, Ray will fall back to
+      # /tmp which cause slowdowns if it's not a shared memory volume.
+      volumes:
+      - name: dshm
+        emptyDir:
+          medium: Memory
+      - name: mesh-manager-tls
+        secret:
+          secretName: mesh-manager-tls
+      containers:
+        - name: ray-head
+          image: rayproject/ray:2.3.0
+          imagePullPolicy: Always
+          command: [ "/bin/bash", "-c", "--" ]
+          # if there is no password for Redis, set --redis-password=''
+          args:
+            - "ray start --head --port=6380 --num-cpus=$MY_CPU_REQUEST --dashboard-host=127.0.0.1 --object-manager-port=8076 --node-manager-port=8077 --dashboard-agent-grpc-port=8078 --dashboard-agent-listen-port=52365 --block"
+          ports:
+            - containerPort: 6380 # GCS server
+            - containerPort: 10001 # Used by Ray Client
+            - containerPort: 8265 # Used by Ray Dashboard
+          # This volume allocates shared memory for Ray to use for its plasma
+          # object store. If you do not provide this, Ray will fall back to
+          # /tmp which cause slowdowns if it's not a shared memory volume.
+          volumeMounts:
+            - mountPath: /dev/shm
+              name: dshm
+            - mountPath: /etc/mesh-manager/tls
+              name: mesh-manager-tls
+              readOnly: true
+          env:
+            - name: RAY_USE_TLS
+              value: "1"
+            - name: RAY_TLS_SERVER_CERT
+              value: "/etc/mesh-manager/tls/tls.crt"
+            - name: RAY_TLS_SERVER_KEY
+              value: "/etc/mesh-manager/tls/tls.key"
+            - name: RAY_TLS_CA_CERT
+              value: "/etc/mesh-manager/tls/ca.crt"
+            - name: RAY_BACKEND_LOG_LEVEL
+              value: warning
+            # RAY_REDIS_ADDRESS lets ray use external Redis for fault tolerance
+            # - name: RAY_REDIS_ADDRESS
+            #   value: redis:6379 # ip address for the external Redis, which is "redis:6379" in this example
+            # - name: RAY_external_storage_namespace
+            #   value: "ray-metadata"
+            # This is used in the ray start command so that Ray can spawn the
+            # correct number of processes. Omitting this may lead to degraded
+            # performance.
+            - name: MY_CPU_REQUEST
+              valueFrom:
+                resourceFieldRef:
+                  resource: requests.cpu
+          resources:
+            limits:
+              cpu: "2"
+              memory: "4G"
+            requests:
+              # For production use-cases, we recommend specifying integer CPU reqests and limits.
+              # We also recommend setting requests equal to limits for both CPU and memory.
+              # For this example, we use a 500m CPU request to accomodate resource-constrained local
+              # Kubernetes testing environments such as KinD and minikube.
+              cpu: "2"
+              # The rest state memory usage of the Ray head node is around 1Gb. We do not
+              # recommend allocating less than 2Gb memory for the Ray head pod.
+              # For production use-cases, we recommend allocating at least 8Gb memory for each Ray container.
+              memory: "4G"
