@@ -76,6 +76,8 @@ func (r *RayJobReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 	if rayJobInstance, err = r.getRayJobInstance(ctx, request); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+	// TODO (kevin85421): ObservedGeneration should be used to determine whether update this CR or not.
+	rayJobInstance.Status.ObservedGeneration = rayJobInstance.ObjectMeta.Generation
 
 	if rayJobInstance.ObjectMeta.DeletionTimestamp.IsZero() {
 		// The object is not being deleted, so if it does not have our finalizer,
@@ -345,9 +347,6 @@ func (r *RayJobReconciler) updateState(ctx context.Context, rayJob *rayv1alpha1.
 		rayJob.Status.StartTime = utils.ConvertUnixTimeToMetav1Time(jobInfo.StartTime)
 		rayJob.Status.EndTime = utils.ConvertUnixTimeToMetav1Time(jobInfo.EndTime)
 	}
-
-	// TODO (kevin85421): ObservedGeneration should be used to determine whether update this CR or not.
-	rayJob.Status.ObservedGeneration = rayJob.ObjectMeta.Generation
 
 	if errStatus := r.Status().Update(ctx, rayJob); errStatus != nil {
 		return fmtErrors.Errorf("combined error: %v %v", err, errStatus)
