@@ -45,7 +45,10 @@ head:
     #   requests:
     #     cpu: "500m"
     #     memory: "512Mi"
-  labels: {}
+  initContainers:
+  - name: init
+    image: "busybox:1.28"
+    command: ['sh', '-c', "echo 123"]
   # Note: From KubeRay v0.6.0, users need to create the ServiceAccount by themselves if they specify the `serviceAccountName`
   # in the headGroupSpec. See https://github.com/ray-project/kuberay/pull/1128 for more details.
   serviceAccountName: ""
@@ -101,6 +104,10 @@ head:
 
 
 worker:
+  initContainers:
+  - name: init
+    image: "busybox:1.28"
+    command: ['sh', '-c', "echo 456"]
   # If you want to disable the default workergroup
   # uncomment the line below
   # disabled: true
@@ -161,9 +168,13 @@ worker:
 # will be used as the groupName
 additionalWorkerGroups:
   smallGroup:
+    initContainers:
+    - name: init
+      image: "busybox:1.28"
+      command: ['sh', '-c', "echo 789"]
     # Disabled by default
-    disabled: true
-    replicas: 0
+    # disabled: true
+    replicas: 1
     minReplicas: 0
     maxReplicas: 3
     labels: {}
