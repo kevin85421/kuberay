@@ -64,8 +64,9 @@ jobs:
         username: ${{ secrets.QUAY_USERNAME }}
         password: ${{ secrets.QUAY_ROBOT_TOKEN }}
 
-    - name: Push Operator to DockerHub
+    - name: Push Operator to Quay.io
       run: |
-        docker push kuberay/operator:${{ steps.vars.outputs.sha_short }};
-        docker image tag kuberay/operator:${{ steps.vars.outputs.sha_short }} kuberay/operator:${{ github.event.inputs.tag }};
-        docker push kuberay/operator:${{ github.event.inputs.tag }}
+        docker image tag kuberay/operator:${{ steps.vars.outputs.sha_short }} quay.io/kevin85421/kuberay:${{ steps.vars.outputs.sha_short }};
+        docker push quay.io/kevin85421/kuberay:${{ steps.vars.outputs.sha_short }};
+        docker image tag kuberay/operator:${{ steps.vars.outputs.sha_short }} quay.io/kevin85421/kuberay:${{ github.event.inputs.tag }};
+        docker push quay.io/kevin85421/kuberay:${{ github.event.inputs.tag }}
