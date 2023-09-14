@@ -1,0 +1,85 @@
+apiVersion: ray.io/v1alpha1
+kind: RayService
+metadata:
+  name: serve-qps
+spec:
+  serviceUnhealthySecondThreshold: 900 # Config for the health check threshold for Ray Serve applications. Default value is 900.
+  deploymentUnhealthySecondThreshold: 300 # Config for the health check threshold for Ray dashboard agent. Default value is 300.
+  # serveConfigV2 takes a yaml multi-line scalar, which should be a Ray Serve multi-application config. See https://docs.ray.io/en/latest/serve/multi-app.html.
+  # Only one of serveConfig and serveConfigV2 should be used.
+  serveConfigV2: |
+    applications:
+      - name: no_ops
+        route_prefix: /
+        import_path: microbenchmarks.no_ops:app_builder
+        args:
+          num_forwards: 0
+        runtime_env:
+          working_dir: "https://github.com/ray-project/serve_workloads/archive/main.zip"
+        deployments:
+        - name: NoOp
+          num_replicas: 16
+  rayClusterConfig:
+    rayVersion: '2.6.3' # should match the Ray version in the image of the containers
+    ######################headGroupSpecs#################################
+    # Ray head pod template.
+    headGroupSpec:
+      rayStartParams:
+        num-cpus: "0"
+      #pod template
+      template:
+        spec:
+          containers:
+            - name: ray-head
+              image: rayproject/ray:2.6.3
+              resources:
+                limits:
+                  cpu: 16
+                  memory: 64Gi
+                requests:
+                  cpu: 12
+                  memory: 48Gi
+              ports:
+                - containerPort: 6379
+                  name: gcs-server
+                - containerPort: 8265 # Ray dashboard
+                  name: dashboard
+                - containerPort: 10001
+                  name: client
+                - containerPort: 8000
+                  name: serve
+          tolerations:
+          - key: "serve-benchmark"
+            operator: "Equal"
+            value: "yes"
+            effect: "NoSchedule"
+    workerGroupSpecs:
+      # the pod replicas in this group typed worker
+      - replicas: 1
+        minReplicas: 0
+        maxReplicas: 20
+        groupName: small-group
+        rayStartParams:
+          num-cpus: "16"
+        #pod template
+        template:
+          spec:
+            containers:
+              - name: ray-worker # must consist of lower case alphanumeric characters or '-', and must start and end with an alphanumeric character (e.g. 'my-name',  or '123-abc'
+                image: rayproject/ray:2.6.3
+                lifecycle:
+                  preStop:
+                    exec:
+                      command: ["/bin/sh","-c","ray stop"]
+                resources:
+                  limits:
+                    cpu: "16"
+                    memory: "64Gi"
+                  requests:
+                    cpu: "12"
+                    memory: "48Gi"
+            tolerations:
+            - key: "serve-benchmark"
+              operator: "Equal"
+              value: "yes"
+              effect: "NoSchedule"

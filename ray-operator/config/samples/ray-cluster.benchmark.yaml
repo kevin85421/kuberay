@@ -1,0 +1,75 @@
+apiVersion: ray.io/v1alpha1
+kind: RayCluster
+metadata:
+  name: locust-cluster
+spec:
+  rayVersion: '2.6.3'
+  # Ray head pod configuration
+  headGroupSpec:
+    rayStartParams:
+      num-cpus: "16"
+    # Pod template
+    template:
+      spec:
+        containers:
+        - name: ray-head
+          image: rayproject/ray:2.6.3
+          ports:
+          - containerPort: 6379
+            name: gcs
+          - containerPort: 8265
+            name: dashboard
+          - containerPort: 10001
+            name: client
+          command: ["pip install locust; git clone https://github.com/ray-project/serve_workloads.git; mkdir /home/ray/serve_workloads/microbenchmarks/locust_results"]
+          volumeMounts:
+            - mountPath: /tmp/ray
+              name: ray-logs
+          resources:
+            limits:
+              cpu: 16
+              memory: 64Gi
+            requests:
+              cpu: 12
+              memory: 48Gi
+        volumes:
+          - name: ray-logs
+            emptyDir: {}
+        tolerations:
+        - key: "locust"
+          operator: "Equal"
+          value: "yes"
+          effect: "NoSchedule"
+  workerGroupSpecs:
+  # the pod replicas in this group typed worker
+  - replicas: 10
+    minReplicas: 0
+    maxReplicas: 20
+    groupName: small-group
+    rayStartParams:
+      num-cpus: "16"
+    #pod template
+    template:
+      spec:
+        containers:
+        - name: ray-worker
+          image: rayproject/ray:2.6.3
+          command: ["pip install locust; git clone https://github.com/ray-project/serve_workloads.git; mkdir /home/ray/serve_workloads/microbenchmarks/locust_results"]
+          volumeMounts:
+            - mountPath: /tmp/ray
+              name: ray-logs
+          resources:
+            limits:
+              cpu: 16
+              memory: 64Gi
+            requests:
+              cpu: 12
+              memory: 48Gi
+        volumes:
+          - name: ray-logs
+            emptyDir: {}
+        tolerations:
+        - key: "locust"
+          operator: "Equal"
+          value: "yes"
+          effect: "NoSchedule"
