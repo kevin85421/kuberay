@@ -305,7 +305,7 @@ jobs:
         tags: |
           quay.io/${{env.REPO_ORG}}/${{env.REPO_NAME}}:${{ steps.vars.outputs.sha_short }}
           quay.io/${{env.REPO_ORG}}/${{env.REPO_NAME}}:nightly
-      if: contains(fromJson('["refs/heads/master"]'), github.ref)
+      # if: contains(fromJson('["refs/heads/master"]'), github.ref)
 
   build_kubectl-plugin:
     env:
