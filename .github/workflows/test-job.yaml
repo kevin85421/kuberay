@@ -6,9 +6,6 @@ on:
     - master
     - release-*
   pull_request:
-    branches:
-    - master
-    - release-*
 
 jobs:
   lint:
@@ -242,17 +239,17 @@ jobs:
       id: vars
       run: echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
 
-    - name: Get dependencies
-      run: go mod download
-      working-directory: ${{env.working-directory}}
+    # - name: Get dependencies
+    #   run: go mod download
+    #   working-directory: ${{env.working-directory}}
 
-    - name: Build
-      run: make build
-      working-directory: ${{env.working-directory}}
+    # - name: Build
+    #   run: make build
+    #   working-directory: ${{env.working-directory}}
 
-    - name: Test
-      run: make test
-      working-directory: ${{env.working-directory}}
+    # - name: Test
+    #   run: make test
+    #   working-directory: ${{env.working-directory}}
 
     - name: Set up Docker
       uses: docker/setup-docker-action@v4
@@ -275,7 +272,7 @@ jobs:
         registry: quay.io
         username: ${{ secrets.QUAY_USERNAME }}
         password: ${{ secrets.QUAY_ROBOT_TOKEN }}
-      if: contains(fromJson('["refs/heads/master"]'), github.ref)
+      # if: contains(fromJson('["refs/heads/master"]'), github.ref)
 
     # Build operators inside the gh runner vm directly and then copy the go binaries to docker images using the Dockerfile.buildx
     - name: Compile linux/amd64 Operator go binary
@@ -286,7 +283,7 @@ jobs:
       run: |
         CGO_ENABLED=$CGO_ENABLED GOOS=$GOOS GOARCH=$GOARCH go build -tags strictfipsruntime -a -o manager-$GOARCH main.go
       working-directory: ${{env.working-directory}}
-      if: contains(fromJson('["refs/heads/master"]'), github.ref)
+      # if: contains(fromJson('["refs/heads/master"]'), github.ref)
 
     - name: Cross Compile linux/arm64 Operator binary
       env:
@@ -299,7 +296,10 @@ jobs:
         sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
         CC=$CC CGO_ENABLED=$CGO_ENABLED GOOS=$GOOS GOARCH=$GOARCH go build -tags strictfipsruntime -a -o manager-$GOARCH main.go
       working-directory: ${{env.working-directory}}
-      if: contains(fromJson('["refs/heads/master"]'), github.ref)
+      # if: contains(fromJson('["refs/heads/master"]'), github.ref)
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -308,8 +308,8 @@ jobs:
     - name: Build MultiArch Docker Image and Push on Merge
       uses: docker/build-push-action@v5
       env:
-        REPO_ORG: kuberay
-        REPO_NAME: operator
+        REPO_ORG: kevin85421
+        REPO_NAME: kuberay
       with:
         platforms: linux/amd64,linux/arm64
         context: ${{env.working-directory}}
@@ -319,7 +319,7 @@ jobs:
         tags: |
           quay.io/${{env.REPO_ORG}}/${{env.REPO_NAME}}:${{ steps.vars.outputs.sha_short }}
           quay.io/${{env.REPO_ORG}}/${{env.REPO_NAME}}:nightly
-      if: contains(fromJson('["refs/heads/master"]'), github.ref)
+      # if: contains(fromJson('["refs/heads/master"]'), github.ref)
 
   build_kubectl-plugin:
     env:
